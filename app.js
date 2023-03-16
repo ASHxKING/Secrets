@@ -1,10 +1,13 @@
 require("dotenv").config();
+// const md5 = require("md5");
+const bcrypt = require("bcrypt");
 const express = require("express");
 const bodyParser = require("body-parser");
 const ejs = require("ejs");
 const port = 3000;
 const mongoose = require("mongoose");
-const encrypt = require("mongoose-encryption");
+const saltRounds = 9;
+// const encrypt = require("mongoose-encryption");
 
 const app = express();
 
@@ -20,7 +23,7 @@ const UserSchema = new mongoose.Schema({
 ////////////////////////////////////////// encryption ////////////////////////////////////////////////
 
 
-UserSchema.plugin(encrypt, { secret: process.env.SECRETS, encryptedFields: ["password"] });
+// UserSchema.plugin(encrypt, { secret: process.env.SECRETS, encryptedFields: ["password"] });
 
 // MONGOOSE MODEL
 const USER = mongoose.model("user", UserSchema);
@@ -46,18 +49,22 @@ app.get("/register", function (req, res) {
 ///////////////////////////////////////////////////////////////  POST ROUTES  ///////////////////////////////////////////////////////////
 
 app.post("/register", function (req, res) {
-  const newUser = new USER({
-    email: req.body.username,
-    password: req.body.password,
-  });
-  newUser
-    .save()
-    .then(function () {
-      res.render("secrets");
-    })
-    .catch(function (err) {
-      console.log(err);
+  bcrypt.hash(req.body.password, saltRounds, function(err, hash) {
+    // Store hash in your password DB.
+    const newUser = new USER({
+      email: req.body.username,
+      password: hash,
     });
+    newUser
+      .save()
+      .then(function () {
+        res.render("secrets");
+      })
+      .catch(function (err) {
+        console.log(err);
+      });
+  });
+  
   // .then(()=>{
   //     res.render("secrets");
   // })
@@ -72,9 +79,11 @@ app.post("/login", function (req, res) {
 
   USER.findOne({ email: username })
     .then((founduser) => {
-      if (founduser.password === password) {
-        res.render("secrets");
-      }
+      bcrypt.compare(password, founduser.password , function(err, result) {
+        if(result == true){
+          res.render("secrets");
+        }
+      })
     })
     .catch((err) => {
       console.log(err);
